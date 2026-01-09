@@ -1,0 +1,14 @@
+# Microsoft Agent Framework (preview)
+agent-framework==1.0.0b260107
+
+# Web UI
+chainlit>=2.9.4
+
+# Environment variables
+python-dotenv>=1.2.1
+
+# HTTP client for tools
+httpx>=0.28.0
+
+# OpenAI async client (for GitHub Models)
+openai>=2.14.0
