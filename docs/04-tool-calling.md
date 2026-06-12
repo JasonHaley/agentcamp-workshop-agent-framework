@@ -252,7 +252,7 @@ Aria: Tokyo is 8°C while Sydney is 22°C...
 
 ## 📋 Your Complete Files
 
-### tools.py
+### app.py
 
 ```python
 """
@@ -366,7 +366,7 @@ if __name__ == "__main__":
 ## 🗂️ Project Structure
 
 ```
-phase-05/
+phase-04/
 ├── app.py          # Agent with tools
 └── tools.py        # Tool definitions
 ```
@@ -401,7 +401,7 @@ You can add more tools by:
 
 Your agent can now interact with the real world!
 
-👉 **Next: [Phase 6: MCP Integration](06-mcp-integration.md)**
+👉 **Next: [Phase 5: MCP Integration](05-mcp-integration.md)**
 
 ---
 

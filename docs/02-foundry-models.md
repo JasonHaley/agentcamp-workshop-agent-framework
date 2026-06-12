@@ -47,7 +47,7 @@ async def main():
 
     print("🔄 Connecting to Foundry...")
 
-    # Create an async OpenAI client pointing to GitHub Models
+    # Create a Foundry chat client pointing to your model deployment
     client = FoundryChatClient(
         project_endpoint=os.getenv("FOUNDRY_PROJECT_ENDPOINT"),
         model=os.getenv("FOUNDRY_MODEL"),
@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
 ---
 
-## ▶️ Step 4: Run the Test
+## ▶️ Step 2: Run the Test
 
 ```bash
 python test_foundry_models.py
@@ -114,11 +114,11 @@ print(f"Agent: {result}")
 ```
 
 **Key points:**
-- `FoundryClient` is the Client to use when accessing models deployed in Microsoft Foundry
+- `FoundryChatClient` is the client to use when accessing models deployed in Microsoft Foundry
 - `model` is the deployment name
 - `credential` provides the user configured with permission to the deployed model
-- `agent.run()` is calls the LLM 
-- We'll build this out more in Phase 4 to add reasoning and tool capabilities
+- `agent.run()` calls the LLM
+- We'll build this out more in later phases to add tools, MCP, and skills
 
 ---
 
@@ -127,7 +127,7 @@ print(f"Agent: {result}")
 ```
 agent-framework-workshop/
 ├── .venv/
-├── .env                        # Contains GITHUB_TOKEN
+├── .env                        # Contains FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_MODEL
 ├── requirements.txt
 └── phase-02/
     └── test_foundry_models.py   # Connection test
@@ -139,7 +139,7 @@ agent-framework-workshop/
 
 | Check | Status |
 |-------|--------|
-| GitHub token created | ☐ |
+| Foundry access configured | ☐ |
 | Access variables saved in `.env` | ☐ |
 | Test script runs successfully | ☐ |
 | Received response from model | ☐ |
@@ -151,10 +151,9 @@ You're talking to AI! Let's build a chat interface.
 **Phase progression:**
 - **Phase 2** (current): Basic agent - simple connection test
 - **Phase 3**: Add Chainlit UI with streaming
-- **Phase 4**: Use Microsoft Agent Framework for reasoning
-- **Phase 5**: Add tool calling capabilities
-- **Phase 6**: Connect to MCP servers
-- **Phase 7**: Add Skills to the agent
+- **Phase 4**: Add tool calling capabilities
+- **Phase 5**: Connect to MCP servers
+- **Phase 6**: Add Skills to the agent
 
 👉 **Next: [Phase 3: Chainlit Basics](03-chainlit-basics.md)**
 

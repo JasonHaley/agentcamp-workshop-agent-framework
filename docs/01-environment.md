@@ -86,6 +86,9 @@ Add the following content:
 # Microsoft Agent Framework
 agent-framework==1.8.1
 
+# Azure credential for Foundry (DefaultAzureCredential)
+azure-identity>=1.19.0
+
 # Web UI
 chainlit>=2.11.1
 
@@ -115,8 +118,10 @@ uv pip install -r requirements.txt
 
 This installs:
 - **agent-framework** - Microsoft's AI agent framework
+- **azure-identity** - Azure credential used to authenticate to Foundry
 - **chainlit** - Chat UI framework
 - **python-dotenv** - Environment variable management
+- **httpx** - HTTP client used by the weather tool (Phase 4+)
 
 ---
 

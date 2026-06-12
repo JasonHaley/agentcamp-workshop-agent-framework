@@ -6,12 +6,12 @@ This phase combines local tools with MCP (Model Context Protocol)
 tools from external servers.
 
 Key Concepts:
-- HostedMCPTool for external tool servers
+- MCPStreamableHTTPTool for external tool servers
 - Combining local and MCP tools
 - Extensible architecture for tool integration
 
 Prerequisites:
-- Phase 5 completed
+- Phase 4 completed
 - Understanding of MCP protocol
 """
 
@@ -19,7 +19,6 @@ import os
 from datetime import date
 import chainlit as cl
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
 from agent_framework import Agent, MCPStreamableHTTPTool
 from agent_framework.foundry import FoundryChatClient
 from azure.identity import DefaultAzureCredential

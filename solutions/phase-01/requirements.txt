@@ -1,6 +1,9 @@
 # Microsoft Agent Framework
 agent-framework==1.8.1
 
+# Azure credential for Foundry (DefaultAzureCredential)
+azure-identity>=1.19.0
+
 # Web UI
 chainlit>=2.11.1
 

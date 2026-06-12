@@ -70,7 +70,7 @@ cd phase-05
 
 ## 📋 Step 2: Copy Files from Phase 4
 
-Start with Phase 5's working code:
+Start with Phase 4's working code:
 
 ```bash
 cp ../phase-04/app.py .
@@ -96,7 +96,7 @@ from tools import TOOLS
 
 load_dotenv()
 
-SYSTEM_PROMPT = f"""You are a helpful AI assistant named Aria.
+INSTRUCTIONS = f"""You are a helpful AI assistant named Aria.
 
 You have access to multiple tools:
 - Local tools: get_weather for weather queries
@@ -220,8 +220,8 @@ mcp_tool = MCPStreamableHTTPTool(
 )
 
 # Add to agent
-agent = ChatAgent(
-    chat_client=chat_client,
+agent = Agent(
+    client=client,
     tools=[mcp_tool, *local_tools]
 )
 ```
@@ -284,12 +284,12 @@ This phase combines local tools with MCP (Model Context Protocol)
 tools from external servers.
 
 Key Concepts:
-- HostedMCPTool for external tool servers
+- MCPStreamableHTTPTool for external tool servers
 - Combining local and MCP tools
 - Extensible architecture for tool integration
 
 Prerequisites:
-- Phase 5 completed
+- Phase 4 completed
 - Understanding of MCP protocol
 """
 
@@ -297,7 +297,6 @@ import os
 from datetime import date
 import chainlit as cl
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
 from agent_framework import Agent, MCPStreamableHTTPTool
 from agent_framework.foundry import FoundryChatClient
 from azure.identity import DefaultAzureCredential
@@ -419,7 +418,7 @@ if __name__ == "__main__":
 ## 🗂️ Project Structure
 
 ```
-phase-06/
+phase-05/
 ├── app.py          # Agent with local + MCP tools
 └── tools.py        # Local tool definitions
 ```

@@ -1,25 +1,24 @@
 """
-Phase 5: Agent with MCP Integration
+Phase 6: Agent with Skills (+ MCP + local tools)
 Run with: chainlit run app.py -w
 
-This phase combines local tools with MCP (Model Context Protocol)
-tools from external servers.
+This phase adds file-based Skills on top of the Phase 5 MCP agent.
+Skills bundle instructions (SKILL.md), deterministic scripts, and data,
+and are loaded with progressive disclosure via a SkillsProvider.
 
 Key Concepts:
-- HostedMCPTool for external tool servers
-- Combining local and MCP tools
-- Extensible architecture for tool integration
+- SkillsProvider.from_paths for file-based skill discovery
+- A script_runner to execute bundled skill scripts
+- context_providers (skills are context, not tools)
 
 Prerequisites:
 - Phase 5 completed
-- Understanding of MCP protocol
 """
 
 import os
 from datetime import date
 import chainlit as cl
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
 from pathlib import Path
 from agent_framework import Agent, MCPStreamableHTTPTool, SkillsProvider
 from agent_framework.foundry import FoundryChatClient
@@ -82,10 +81,11 @@ def get_mcp_tools():
     return mcp_tools
 
 def get_skills_provider():
-    """Create a SkillsProvider for file-based skills."""
-        # Create the skills provider
-    # Discovers skills from the 'skills' directory and configures the
-    # subprocess_script_runner to run file-based scripts.
+    """Create a SkillsProvider for file-based skills.
+
+    Discovers skills from the 'skills' directory and configures the
+    subprocess_script_runner to run file-based scripts.
+    """
     skills_dir = Path(__file__).parent / "skills"
     skills_provider = SkillsProvider.from_paths(
         skill_paths=str(skills_dir),

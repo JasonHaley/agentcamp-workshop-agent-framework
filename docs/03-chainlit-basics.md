@@ -311,7 +311,7 @@ phase-03/
 
 You've built a chat interface with memory and streaming!
 
-👉 **Next: [Phase 4: Agent Framework Agents](04-agent-framework.md)**
+👉 **Next: [Phase 4: Tool Calling](04-tool-calling.md)**
 
 ---
 
