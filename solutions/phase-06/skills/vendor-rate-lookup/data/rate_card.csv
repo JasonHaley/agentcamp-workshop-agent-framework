@@ -1,0 +1,12 @@
+vendor,role,hourly_rate_usd,volume_tier_hours,volume_discount_pct,contract_ref
+Contoso Consulting,Senior Consultant,245,200,10,MSA-2024-017
+Contoso Consulting,Junior Consultant,140,200,10,MSA-2024-017
+Contoso Consulting,Solution Architect,310,150,12,MSA-2024-017
+Fabrikam Partners,Senior Consultant,265,250,8,MSA-2023-104
+Fabrikam Partners,Data Engineer,225,250,8,MSA-2023-104
+Fabrikam Partners,Project Manager,195,300,5,MSA-2023-104
+Northwind Solutions,Senior Consultant,230,180,15,MSA-2025-002
+Northwind Solutions,Cloud Engineer,210,180,15,MSA-2025-002
+Northwind Solutions,QA Specialist,125,400,10,MSA-2025-002
+Tailspin Technical,Solution Architect,295,100,20,MSA-2024-088
+Tailspin Technical,Security Consultant,275,100,20,MSA-2024-088

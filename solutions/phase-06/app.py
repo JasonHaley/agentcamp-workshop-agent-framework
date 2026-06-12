@@ -1,5 +1,5 @@
 """
-Phase 6: Agent with MCP Integration
+Phase 5: Agent with MCP Integration
 Run with: chainlit run app.py -w
 
 This phase combines local tools with MCP (Model Context Protocol)
@@ -20,18 +20,26 @@ from datetime import date
 import chainlit as cl
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
-from agent_framework import ChatAgent, FunctionCallContent, FunctionResultContent, MCPStreamableHTTPTool
-from agent_framework.openai import OpenAIChatClient
+from pathlib import Path
+from agent_framework import Agent, MCPStreamableHTTPTool, SkillsProvider
+from agent_framework.foundry import FoundryChatClient
+from azure.identity import DefaultAzureCredential
 
 from tools import TOOLS
+from subprocess_script_runner import subprocess_script_runner
 
 load_dotenv()
 
-SYSTEM_PROMPT = f"""You are a helpful AI assistant named Aria.
+INSTRUCTIONS = f"""You are a helpful AI assistant named Aria.
 
 You have access to multiple tools:
 - Local tools: get_weather for weather queries
 - MCP tools: Microsoft Learn documentation for technical questions
+
+Before answering, check whether any of your available skills applies to the
+request. For questions about internal data (rates, contracts, policies),
+never answer from general knowledge — if a skill covers it, use it; if none
+does, say so.
 
 Guidelines:
 - For weather, use get_weather
@@ -42,18 +50,14 @@ Guidelines:
 Current date: {date.today().strftime("%B %d, %Y")}
 """
 
-
 def get_chat_client():
-    """Create an Agent Framework chat client using GitHub Models."""
-    openai_client = AsyncOpenAI(
-        api_key=os.getenv("GITHUB_TOKEN"),
-        base_url="https://models.github.ai/inference",
+    """Create an Agent Framework chat client using Foundry."""
+    client = FoundryChatClient(
+        project_endpoint=os.getenv("FOUNDRY_PROJECT_ENDPOINT"),
+        model=os.getenv("FOUNDRY_MODEL"),
+        credential=DefaultAzureCredential()
     )
-    return OpenAIChatClient(
-        async_client=openai_client,
-        model_id="gpt-4o-mini",
-    )
-
+    return client
 
 def get_mcp_tools():
     """
@@ -77,22 +81,34 @@ def get_mcp_tools():
         print(f"Warning: Could not connect to Microsoft Learn MCP server: {e}")
     return mcp_tools
 
+def get_skills_provider():
+    """Create a SkillsProvider for file-based skills."""
+        # Create the skills provider
+    # Discovers skills from the 'skills' directory and configures the
+    # subprocess_script_runner to run file-based scripts.
+    skills_dir = Path(__file__).parent / "skills"
+    skills_provider = SkillsProvider.from_paths(
+        skill_paths=str(skills_dir),
+        script_runner=subprocess_script_runner,
+    )
+    return skills_provider
 
 def create_agent():
-    """Create a ChatAgent with local and MCP tools."""
-    chat_client = get_chat_client()
+    """Create a ChatAgent with local, MCP tools and skills."""
+    client = get_chat_client()
     mcp_tools = get_mcp_tools()
+    skills_provider = get_skills_provider()
 
     # Combine local tools with MCP tools
     all_tools = [*TOOLS, *mcp_tools]
 
-    agent = ChatAgent(
-        chat_client=chat_client,
+    agent = Agent(
+        client=client,
         name="Aria",
-        description="A helpful AI assistant with local and MCP tools",
-        instructions=SYSTEM_PROMPT,
+        description="A helpful AI assistant with local, MCP tools and skills",
+        instructions=INSTRUCTIONS,
         tools=all_tools,
-        temperature=0.7,
+        context_providers=[skills_provider],
     )
 
     return agent
@@ -101,50 +117,40 @@ def create_agent():
 @cl.on_chat_start
 async def start():
     """Initialize the chat session."""
+
     agent = create_agent()
-    thread = agent.get_new_thread()
 
+    # Store message history in session
+    session = agent.create_session()
+    
     cl.user_session.set("agent", agent)
-    cl.user_session.set("thread", thread)
+    cl.user_session.set("session", session)
 
-    await cl.Message(
-        content="👋 Hi! I'm Aria. I can check weather and access various tools!"
-    ).send()
+    await cl.Message(content="👋 Hi! I'm Aria. How can I help?").send()
 
 
 @cl.on_message
 async def main(message: cl.Message):
-    """Handle incoming messages with local and MCP tool support."""
+    """Handle incoming messages with streaming."""
     agent = cl.user_session.get("agent")
-    thread = cl.user_session.get("thread")
+    session = cl.user_session.get("session")
+    
+    await stream_agent_response(
+        agent=agent,
+        session=session,
+        answer=cl.Message(content=""),
+        message=message.content,
+    )
 
-    msg = cl.Message(content="")
-    tool_steps = {}
+async def stream_agent_response(agent: Agent, session, answer: cl.Message, message: str):
+    """Stream the agent's response."""
 
-    async for update in agent.run_stream(message.content, thread=thread):
-        # Handle tool invocation and results
-        if update.contents:
-            for content in update.contents:
-                # Detect function call - only show step when we have the name (first chunk)
-                if isinstance(content, FunctionCallContent):
-                    # Only create step on the first chunk that has a name
-                    if content.name and content.call_id not in tool_steps:
-                        step = cl.Step(
-                            name=f"🔧 {content.name}",
-                            type="tool"
-                        )
-                        await step.send()
-                        tool_steps[content.call_id] = step
-
-                # Detect function result
-                elif isinstance(content, FunctionResultContent):
-                    step = tool_steps.get(content.call_id)
-                    if step:
-                        step.output = content.result
-                        await step.update()
-
-        # Stream text response
+    async for update in agent.run(message, session=session, stream=True):
         if update.text:
-            await msg.stream_token(update.text)
+            await answer.stream_token(update.text)
 
-    await msg.send()
+    await answer.send()
+
+if __name__ == "__main__":
+    from chainlit.cli import run_chainlit
+    run_chainlit(__file__)

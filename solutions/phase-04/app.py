@@ -1,109 +1,104 @@
 """
-Phase 4: Introducing Microsoft Agent Framework
+Phase 4: Agent with Tool Calling
 Run with: chainlit run app.py -w
 
-This phase introduces the Agent Framework and its ChatAgent class.
-The key difference from Phase 3: ChatAgent is a higher-level abstraction
-built on LangGraph that can reason about tasks and use tools.
+This phase adds tools to the agent, allowing it to fetch
+real-time data from external APIs.
 
-Key Concepts Introduced:
-- ChatAgent: Agent abstraction with tool support
-- AgentThread: Manages conversation history
-- Agent reasoning: Can decide what to do next
-- Prepared for tool integration (Phase 5)
-
-Difference from Phase 3:
-- Phase 3: Direct LLM calls with message history
-- Phase 4: Agent loop (think → act → observe)
+Key Concepts:
+- Adding tools to ChatAgent
+- Tool calling flow (think → act → observe)
+- Displaying tool steps in Chainlit UI
+- Combining LLM knowledge with external data
 
 Prerequisites:
 - Phase 3 completed
-- agent-framework package installed
+- WEATHER_API_KEY in .env
 """
 
 import os
 from datetime import date
 import chainlit as cl
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
-from agent_framework import ChatAgent
-from agent_framework.openai import OpenAIChatClient
+from agent_framework import Agent
+from agent_framework.foundry import FoundryChatClient
+from azure.identity import DefaultAzureCredential
+
+from tools import TOOLS
 
 load_dotenv()
 
-SYSTEM_PROMPT = f"""You are a helpful AI assistant named Aria.
+INSTRUCTIONS = f"""You are a helpful AI assistant named Aria.
+You have access to tools that let you fetch real-time information.
 
-Your capabilities:
-- Answer questions on any topic
-- Help with coding and technical problems
-- Provide explanations and analysis
-- Be friendly and conversational
+Available tools:
+- get_weather: Get current weather for any city
 
-Guidelines:
-- Be concise but thorough
-- Admit when you don't know something
-- Ask clarifying questions when needed
+When users ask about weather, USE the get_weather tool. Don't make up weather data.
+For other questions, answer from your knowledge.
 
 Current date: {date.today().strftime("%B %d, %Y")}
 """
 
-
 def get_chat_client():
-    """Create an Agent Framework chat client using GitHub Models."""
-    openai_client = AsyncOpenAI(
-        api_key=os.getenv("GITHUB_TOKEN"),
-        base_url="https://models.github.ai/inference",
+    """Create an Agent Framework chat client using Foundry."""
+    client = FoundryChatClient(
+        project_endpoint=os.getenv("FOUNDRY_PROJECT_ENDPOINT"),
+        model=os.getenv("FOUNDRY_MODEL"),
+        credential=DefaultAzureCredential()
     )
-    return OpenAIChatClient(
-        async_client=openai_client,
-        model_id="gpt-4o-mini",
-    )
-
+    return client
 
 def create_agent():
-    """Create a ChatAgent with configuration.
+    """Create a ChatAgent with tools."""
+    client = get_chat_client()
 
-    This is the key new concept: ChatAgent replaces direct LLM calls.
-    It provides agent reasoning and will support tools in Phase 5.
-    """
-    chat_client = get_chat_client()
-
-    agent = ChatAgent(
-        chat_client=chat_client,
+    agent = Agent(
+        client=client,
         name="Aria",
         description="A helpful AI assistant",
-        instructions=SYSTEM_PROMPT,
-        tools=[],  # No tools yet - we'll add them in Phase 5!
-        temperature=0.7,
+        instructions=INSTRUCTIONS,
+        tools=TOOLS,
     )
 
     return agent
 
-
 @cl.on_chat_start
 async def start():
     """Initialize the chat session."""
-    agent = create_agent()
-    # AgentThread maintains conversation history automatically
-    thread = agent.get_new_thread()
 
+    agent = create_agent()
+
+    # Store message history in session
+    session = agent.create_session()
+    
     cl.user_session.set("agent", agent)
-    cl.user_session.set("thread", thread)
+    cl.user_session.set("session", session)
 
     await cl.Message(content="👋 Hi! I'm Aria. How can I help?").send()
 
-
 @cl.on_message
 async def main(message: cl.Message):
-    """Handle incoming messages using the agent."""
+    """Handle incoming messages with streaming."""
     agent = cl.user_session.get("agent")
-    thread = cl.user_session.get("thread")
+    session = cl.user_session.get("session")
+    
+    await stream_agent_response(
+        agent=agent,
+        session=session,
+        answer=cl.Message(content=""),
+        message=message.content,
+    )
 
-    msg = cl.Message(content="")
+async def stream_agent_response(agent: Agent, session, answer: cl.Message, message: str):
+    """Stream the agent's response."""
 
-    # Key change: agent.run_stream() with thread instead of llm.astream()
-    async for update in agent.run_stream(message.content, thread=thread):
+    async for update in agent.run(message, session=session, stream=True):
         if update.text:
-            await msg.stream_token(update.text)
+            await answer.stream_token(update.text)
 
-    await msg.send()
+    await answer.send()
+
+if __name__ == "__main__":
+    from chainlit.cli import run_chainlit
+    run_chainlit(__file__)

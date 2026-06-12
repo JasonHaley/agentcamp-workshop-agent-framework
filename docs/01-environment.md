@@ -18,10 +18,10 @@ By the end of this phase, you will:
 ## 📋 Prerequisites
 
 Before starting, ensure you have:
-- [ ] Python 3.10 or higher installed
+- [ ] Python 3.10, 3.11, 3.12 or 3.13 installed
 - [ ] A code editor (VS Code recommended)
 - [ ] Terminal/command line access
-- [ ] A GitHub account
+- [ ] A GitHub account (optional)
 
 ---
 
@@ -34,6 +34,8 @@ python --version
 ```
 
 You should see Python 3.10 or higher. If not, [download Python](https://www.python.org/downloads/).
+
+> **NOTE: As of June 2026 Chainlit ***does not*** yet support 3.14**
 
 ---
 
@@ -81,11 +83,11 @@ touch requirements.txt
 Add the following content:
 
 ```text
-# Microsoft Agent Framework (preview)
-agent-framework==1.0.0b260107
+# Microsoft Agent Framework
+agent-framework==1.8.1
 
 # Web UI
-chainlit>=2.9.4
+chainlit>=2.11.1
 
 # Environment variables
 python-dotenv>=1.2.1
@@ -93,8 +95,6 @@ python-dotenv>=1.2.1
 # HTTP client for tools
 httpx>=0.28.0
 
-# OpenAI async client (for GitHub Models)
-openai>=2.14.0
 ```
 
 ---
@@ -117,8 +117,6 @@ This installs:
 - **agent-framework** - Microsoft's AI agent framework
 - **chainlit** - Chat UI framework
 - **python-dotenv** - Environment variable management
-- **httpx** - HTTP client for API calls
-- **openai** - OpenAI client (used with GitHub Models)
 
 ---
 
@@ -130,15 +128,8 @@ Create a `.env` file for secrets:
 touch .env
 ```
 
-Add this template (we'll fill it in next phase):
+NOTE: We will provide the contents to this file during the workshop
 
-```bash
-# GitHub Models API Token
-GITHUB_TOKEN=your_token_here
-
-# WeatherAPI Key (for Phase 5)
-WEATHER_API_KEY=your_key_here
-```
 
 > ⚠️ **Important:** Never commit `.env` to git! Add it to `.gitignore`.
 
@@ -168,9 +159,9 @@ agent-framework-workshop/
 
 ### 🎉 Environment Ready?
 
-You're all set up! Let's connect to AI models.
+You're all set up! Let's connect to the foundry models.
 
-👉 **Next: [Phase 2: GitHub Models](02-github-models.md)**
+👉 **Next: [Phase 2: Foundry Models](02-foundry-models.md)**
 
 ---
 

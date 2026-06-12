@@ -1,6 +1,11 @@
 """
-Phase 6: Tool Definitions (same as Phase 5)
-Local tools that can be combined with MCP tools.
+Phase 4: Tool Definitions
+Tools that can be called by the agent.
+
+Key Concepts:
+- Function-based tools with type annotations
+- Annotated parameters with Field descriptions
+- Docstrings are used by the LLM to understand when to use tools
 """
 
 import os
@@ -56,5 +61,5 @@ def get_weather(
         return f"Error fetching weather: {e}"
 
 
-# List of local tools
+# List of tools to give to the agent
 TOOLS = [get_weather]

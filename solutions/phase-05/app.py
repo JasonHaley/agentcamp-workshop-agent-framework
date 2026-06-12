@@ -1,19 +1,18 @@
 """
-Phase 5: Agent with Tool Calling
+Phase 5: Agent with MCP Integration
 Run with: chainlit run app.py -w
 
-This phase adds tools to the agent, allowing it to fetch
-real-time data from external APIs.
+This phase combines local tools with MCP (Model Context Protocol)
+tools from external servers.
 
 Key Concepts:
-- Adding tools to ChatAgent
-- Tool calling flow (think → act → observe)
-- Displaying tool steps in Chainlit UI
-- Combining LLM knowledge with external data
+- HostedMCPTool for external tool servers
+- Combining local and MCP tools
+- Extensible architecture for tool integration
 
 Prerequisites:
-- Phase 4 completed
-- WEATHER_API_KEY in .env
+- Phase 5 completed
+- Understanding of MCP protocol
 """
 
 import os
@@ -21,49 +20,74 @@ from datetime import date
 import chainlit as cl
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
-from agent_framework import ChatAgent, FunctionCallContent, FunctionResultContent
-from agent_framework.openai import OpenAIChatClient
+from agent_framework import Agent, MCPStreamableHTTPTool
+from agent_framework.foundry import FoundryChatClient
+from azure.identity import DefaultAzureCredential
 
 from tools import TOOLS
 
 load_dotenv()
 
-SYSTEM_PROMPT = f"""You are a helpful AI assistant named Aria.
-You have access to tools that let you fetch real-time information.
+INSTRUCTIONS = f"""You are a helpful AI assistant named Aria.
 
-Available tools:
-- get_weather: Get current weather for any city
+You have access to multiple tools:
+- Local tools: get_weather for weather queries
+- MCP tools: Microsoft Learn documentation for technical questions
 
-When users ask about weather, USE the get_weather tool. Don't make up weather data.
-For other questions, answer from your knowledge.
+Guidelines:
+- For weather, use get_weather
+- For Azure, cloud, and Microsoft Learn documentation questions, use available MCP tools
+- Be helpful and explain what you're doing
+- Example: User asks "How do I create an Azure storage account using az cli?" → Use MCP tools to search Microsoft Learn documentation
 
 Current date: {date.today().strftime("%B %d, %Y")}
 """
 
-
 def get_chat_client():
-    """Create an Agent Framework chat client using GitHub Models."""
-    openai_client = AsyncOpenAI(
-        api_key=os.getenv("GITHUB_TOKEN"),
-        base_url="https://models.github.ai/inference",
+    """Create an Agent Framework chat client using Foundry."""
+    client = FoundryChatClient(
+        project_endpoint=os.getenv("FOUNDRY_PROJECT_ENDPOINT"),
+        model=os.getenv("FOUNDRY_MODEL"),
+        credential=DefaultAzureCredential()
     )
-    return OpenAIChatClient(
-        async_client=openai_client,
-        model_id="gpt-4o-mini",
-    )
+    return client
 
+def get_mcp_tools():
+    """
+    Get MCP tools from external servers.
+
+    MCP (Model Context Protocol) allows connecting to external tool servers.
+    This function configures available MCP servers that provide tools to the agent.
+    """
+    mcp_tools = []
+
+    try:
+        # Add Microsoft Learn MCP Server
+        # This provides access to Microsoft Learn documentation search
+        mcp_tools.append(
+            MCPStreamableHTTPTool(
+                name="microsoft_learn",
+                url="https://learn.microsoft.com/api/mcp"
+            )
+        )
+    except Exception as e:
+        print(f"Warning: Could not connect to Microsoft Learn MCP server: {e}")
+    return mcp_tools
 
 def create_agent():
-    """Create a ChatAgent with tools."""
-    chat_client = get_chat_client()
+    """Create a ChatAgent with local and MCP tools."""
+    client = get_chat_client()
+    mcp_tools = get_mcp_tools()
 
-    agent = ChatAgent(
-        chat_client=chat_client,
+    # Combine local tools with MCP tools
+    all_tools = [*TOOLS, *mcp_tools]
+
+    agent = Agent(
+        client=client,
         name="Aria",
-        description="A helpful AI assistant with weather capabilities",
-        instructions=SYSTEM_PROMPT,
-        tools=TOOLS,
-        temperature=0.7,
+        description="A helpful AI assistant with local and MCP tools",
+        instructions=INSTRUCTIONS,
+        tools=all_tools,
     )
 
     return agent
@@ -72,50 +96,40 @@ def create_agent():
 @cl.on_chat_start
 async def start():
     """Initialize the chat session."""
+
     agent = create_agent()
-    thread = agent.get_new_thread()
 
+    # Store message history in session
+    session = agent.create_session()
+    
     cl.user_session.set("agent", agent)
-    cl.user_session.set("thread", thread)
+    cl.user_session.set("session", session)
 
-    await cl.Message(
-        content="👋 Hi! I'm Aria. I can check the weather for you! Try: 'What's the weather in Paris?'"
-    ).send()
+    await cl.Message(content="👋 Hi! I'm Aria. How can I help?").send()
 
 
 @cl.on_message
 async def main(message: cl.Message):
-    """Handle incoming messages with tool support."""
+    """Handle incoming messages with streaming."""
     agent = cl.user_session.get("agent")
-    thread = cl.user_session.get("thread")
+    session = cl.user_session.get("session")
+    
+    await stream_agent_response(
+        agent=agent,
+        session=session,
+        answer=cl.Message(content=""),
+        message=message.content,
+    )
 
-    msg = cl.Message(content="")
-    tool_steps = {}
+async def stream_agent_response(agent: Agent, session, answer: cl.Message, message: str):
+    """Stream the agent's response."""
 
-    async for update in agent.run_stream(message.content, thread=thread):
-        # Handle tool invocation and results
-        if update.contents:
-            for content in update.contents:
-                # Detect function call - only show step when we have the name (first chunk)
-                if isinstance(content, FunctionCallContent):
-                    # Only create step on the first chunk that has a name
-                    if content.name and content.call_id not in tool_steps:
-                        step = cl.Step(
-                            name=f"🔧 {content.name}",
-                            type="tool"
-                        )
-                        await step.send()
-                        tool_steps[content.call_id] = step
-
-                # Detect function result
-                elif isinstance(content, FunctionResultContent):
-                    step = tool_steps.get(content.call_id)
-                    if step:
-                        step.output = content.result
-                        await step.update()
-
-        # Stream text response
+    async for update in agent.run(message, session=session, stream=True):
         if update.text:
-            await msg.stream_token(update.text)
+            await answer.stream_token(update.text)
 
-    await msg.send()
+    await answer.send()
+
+if __name__ == "__main__":
+    from chainlit.cli import run_chainlit
+    run_chainlit(__file__)

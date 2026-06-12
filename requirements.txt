@@ -9,6 +9,3 @@ python-dotenv>=1.2.1
 
 # HTTP client for tools
 httpx>=0.28.0
-
-# OpenAI async client (for GitHub Models)
-openai>=2.14.0

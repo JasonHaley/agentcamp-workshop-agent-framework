@@ -1,4 +1,4 @@
-# Phase 5: Adding Tools to Your Agent
+# Phase 4: Adding Tools to Your Agent
 
 > ⏱️ **Time to complete**: 20 minutes
 
@@ -44,8 +44,8 @@ User: "What's the weather in Tokyo?"
 ## 📁 Step 1: Create Your Project Folder
 
 ```bash
-mkdir -p phase-05
-cd phase-05
+mkdir -p phase-04
+cd phase-04
 touch app.py tools.py
 ```
 
@@ -137,15 +137,15 @@ import os
 from datetime import date
 import chainlit as cl
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
-from agent_framework import ChatAgent, FunctionCallContent, FunctionResultContent
-from agent_framework.openai import OpenAIChatClient
+from agent_framework import Agent
+from agent_framework.foundry import FoundryChatClient
+from azure.identity import DefaultAzureCredential
 
 from tools import TOOLS
 
 load_dotenv()
 
-SYSTEM_PROMPT = f"""You are a helpful AI assistant named Aria.
+INSTRUCTIONS = f"""You are a helpful AI assistant named Aria.
 You have access to tools that let you fetch real-time information.
 
 Available tools:
@@ -157,95 +157,69 @@ For other questions, answer from your knowledge.
 Current date: {date.today().strftime("%B %d, %Y")}
 """
 
-
 def get_chat_client():
-    """Create an Agent Framework chat client using GitHub Models."""
-    openai_client = AsyncOpenAI(
-        api_key=os.getenv("GITHUB_TOKEN"),
-        base_url="https://models.github.ai/inference",
+    """Create an Agent Framework chat client using Foundry."""
+    client = FoundryChatClient(
+        project_endpoint=os.getenv("FOUNDRY_PROJECT_ENDPOINT"),
+        model=os.getenv("FOUNDRY_MODEL"),
+        credential=DefaultAzureCredential()
     )
-    return OpenAIChatClient(
-        async_client=openai_client,
-        model_id="gpt-4o-mini",
-    )
-
+    return client
 
 def create_agent():
     """Create a ChatAgent with tools."""
-    chat_client = get_chat_client()
+    client = get_chat_client()
 
-    agent = ChatAgent(
-        chat_client=chat_client,
+    agent = Agent(
+        client=client,
         name="Aria",
-        description="A helpful AI assistant with weather capabilities",
-        instructions=SYSTEM_PROMPT,
+        description="A helpful AI assistant",
+        instructions=INSTRUCTIONS,
         tools=TOOLS,
-        temperature=0.7,
     )
 
     return agent
 
-
 @cl.on_chat_start
 async def start():
     """Initialize the chat session."""
+
     agent = create_agent()
-    thread = agent.get_new_thread()
 
+    # Store message history in session
+    session = agent.create_session()
+    
     cl.user_session.set("agent", agent)
-    cl.user_session.set("thread", thread)
+    cl.user_session.set("session", session)
 
-    await cl.Message(
-        content="👋 Hi! I'm Aria. I can check the weather for you! Try: 'What's the weather in Paris?'"
-    ).send()
-
+    await cl.Message(content="👋 Hi! I'm Aria. How can I help?").send()
 
 @cl.on_message
 async def main(message: cl.Message):
-    """Handle incoming messages with tool support."""
+    """Handle incoming messages with streaming."""
     agent = cl.user_session.get("agent")
-    thread = cl.user_session.get("thread")
+    session = cl.user_session.get("session")
+    
+    await stream_agent_response(
+        agent=agent,
+        session=session,
+        answer=cl.Message(content=""),
+        message=message.content,
+    )
 
-    msg = cl.Message(content="")
-    tool_steps = {}
+async def stream_agent_response(agent: Agent, session, answer: cl.Message, message: str):
+    """Stream the agent's response."""
 
-    async for update in agent.run_stream(message.content, thread=thread):
-        # Handle tool invocation and results
-        if update.contents:
-            for content in update.contents:
-                # Detect function call - only show step when we have the name (first chunk)
-                if isinstance(content, FunctionCallContent):
-                    # Only create step on the first chunk that has a name
-                    if content.name and content.call_id not in tool_steps:
-                        step = cl.Step(
-                            name=f"🔧 {content.name}",
-                            type="tool"
-                        )
-                        await step.send()
-                        tool_steps[content.call_id] = step
-
-                # Detect function result
-                elif isinstance(content, FunctionResultContent):
-                    step = tool_steps.get(content.call_id)
-                    if step:
-                        step.output = content.result
-                        await step.update()
-
-        # Stream text response
+    async for update in agent.run(message, session=session, stream=True):
         if update.text:
-            await msg.stream_token(update.text)
+            await answer.stream_token(update.text)
 
-    await msg.send()
+    await answer.send()
+
+if __name__ == "__main__":
+    from chainlit.cli import run_chainlit
+    run_chainlit(__file__)
 ```
-
-**Key changes:**
-- `FunctionCallContent` and `FunctionResultContent` - Proper imports for tool handling
-- `isinstance(content, FunctionCallContent)` - Check for tool calls
-- `isinstance(content, FunctionResultContent)` - Check for tool results
-- `content.call_id` - Unique identifier for tracking tool steps
-- `tool_steps` dict pattern - Store step references by call_id
-
----
 
 ## ▶️ Step 5: Run and Test
 
@@ -258,7 +232,6 @@ chainlit run app.py -w
 **Test 1: Weather (uses tool)**
 ```
 You: What's the weather in London?
-[Tool step appears]
 Aria: The weather in London is 7°C with cloudy skies...
 ```
 
@@ -272,7 +245,6 @@ Aria: Python is a programming language...
 **Test 3: Multiple cities**
 ```
 You: Compare weather in Tokyo and Sydney
-[Two tool calls]
 Aria: Tokyo is 8°C while Sydney is 22°C...
 ```
 
@@ -283,70 +255,37 @@ Aria: Tokyo is 8°C while Sydney is 22°C...
 ### tools.py
 
 ```python
-import os
-from typing import Annotated
-import httpx
-from pydantic import Field
+"""
+Phase 4: Agent with Tool Calling
+Run with: chainlit run app.py -w
 
+This phase adds tools to the agent, allowing it to fetch
+real-time data from external APIs.
 
-def get_weather(
-    city: Annotated[str, Field(description="The name of the city (e.g., 'London', 'Tokyo')")]
-) -> str:
-    """
-    Get the current weather for a city.
+Key Concepts:
+- Adding tools to ChatAgent
+- Tool calling flow (think → act → observe)
+- Displaying tool steps in Chainlit UI
+- Combining LLM knowledge with external data
 
-    Returns current weather conditions including temperature, condition, and humidity.
-    """
-    api_key = os.getenv("WEATHER_API_KEY")
+Prerequisites:
+- Phase 3 completed
+- WEATHER_API_KEY in .env
+"""
 
-    if not api_key:
-        return "Error: WEATHER_API_KEY not set in .env"
-
-    try:
-        response = httpx.get(
-            "http://api.weatherapi.com/v1/current.json",
-            params={"key": api_key, "q": city},
-            timeout=10.0
-        )
-        response.raise_for_status()
-        data = response.json()
-
-        location = data["location"]["name"]
-        country = data["location"]["country"]
-        temp_c = data["current"]["temp_c"]
-        condition = data["current"]["condition"]["text"]
-        humidity = data["current"]["humidity"]
-
-        return f"""Weather for {location}, {country}:
-🌡️ Temperature: {temp_c}°C
-☁️ Condition: {condition}
-💧 Humidity: {humidity}%"""
-
-    except httpx.HTTPStatusError:
-        return f"Could not find weather for '{city}'"
-    except Exception as e:
-        return f"Error: {e}"
-
-
-TOOLS = [get_weather]
-```
-
-### app.py
-
-```python
 import os
 from datetime import date
 import chainlit as cl
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
-from agent_framework import ChatAgent, FunctionCallContent, FunctionResultContent
-from agent_framework.openai import OpenAIChatClient
+from agent_framework import Agent
+from agent_framework.foundry import FoundryChatClient
+from azure.identity import DefaultAzureCredential
 
 from tools import TOOLS
 
 load_dotenv()
 
-SYSTEM_PROMPT = f"""You are a helpful AI assistant named Aria.
+INSTRUCTIONS = f"""You are a helpful AI assistant named Aria.
 You have access to tools that let you fetch real-time information.
 
 Available tools:
@@ -358,85 +297,68 @@ For other questions, answer from your knowledge.
 Current date: {date.today().strftime("%B %d, %Y")}
 """
 
-
 def get_chat_client():
-    """Create an Agent Framework chat client using GitHub Models."""
-    openai_client = AsyncOpenAI(
-        api_key=os.getenv("GITHUB_TOKEN"),
-        base_url="https://models.github.ai/inference",
+    """Create an Agent Framework chat client using Foundry."""
+    client = FoundryChatClient(
+        project_endpoint=os.getenv("FOUNDRY_PROJECT_ENDPOINT"),
+        model=os.getenv("FOUNDRY_MODEL"),
+        credential=DefaultAzureCredential()
     )
-    return OpenAIChatClient(
-        async_client=openai_client,
-        model_id="gpt-4o-mini",
-    )
-
+    return client
 
 def create_agent():
     """Create a ChatAgent with tools."""
-    chat_client = get_chat_client()
+    client = get_chat_client()
 
-    agent = ChatAgent(
-        chat_client=chat_client,
+    agent = Agent(
+        client=client,
         name="Aria",
-        description="A helpful AI assistant with weather capabilities",
-        instructions=SYSTEM_PROMPT,
+        description="A helpful AI assistant",
+        instructions=INSTRUCTIONS,
         tools=TOOLS,
-        temperature=0.7,
     )
 
     return agent
 
-
 @cl.on_chat_start
 async def start():
     """Initialize the chat session."""
+
     agent = create_agent()
-    thread = agent.get_new_thread()
 
+    # Store message history in session
+    session = agent.create_session()
+    
     cl.user_session.set("agent", agent)
-    cl.user_session.set("thread", thread)
+    cl.user_session.set("session", session)
 
-    await cl.Message(
-        content="👋 Hi! I'm Aria. I can check the weather for you! Try: 'What's the weather in Paris?'"
-    ).send()
-
+    await cl.Message(content="👋 Hi! I'm Aria. How can I help?").send()
 
 @cl.on_message
 async def main(message: cl.Message):
-    """Handle incoming messages with tool support."""
+    """Handle incoming messages with streaming."""
     agent = cl.user_session.get("agent")
-    thread = cl.user_session.get("thread")
+    session = cl.user_session.get("session")
+    
+    await stream_agent_response(
+        agent=agent,
+        session=session,
+        answer=cl.Message(content=""),
+        message=message.content,
+    )
 
-    msg = cl.Message(content="")
-    tool_steps = {}
+async def stream_agent_response(agent: Agent, session, answer: cl.Message, message: str):
+    """Stream the agent's response."""
 
-    async for update in agent.run_stream(message.content, thread=thread):
-        # Handle tool invocation and results
-        if update.contents:
-            for content in update.contents:
-                # Detect function call - only show step when we have the name (first chunk)
-                if isinstance(content, FunctionCallContent):
-                    # Only create step on the first chunk that has a name
-                    if content.name and content.call_id not in tool_steps:
-                        step = cl.Step(
-                            name=f"🔧 {content.name}",
-                            type="tool"
-                        )
-                        await step.send()
-                        tool_steps[content.call_id] = step
-
-                # Detect function result
-                elif isinstance(content, FunctionResultContent):
-                    step = tool_steps.get(content.call_id)
-                    if step:
-                        step.output = content.result
-                        await step.update()
-
-        # Stream text response
+    async for update in agent.run(message, session=session, stream=True):
         if update.text:
-            await msg.stream_token(update.text)
+            await answer.stream_token(update.text)
 
-    await msg.send()
+    await answer.send()
+
+if __name__ == "__main__":
+    from chainlit.cli import run_chainlit
+    run_chainlit(__file__)
 ```
 
 ---

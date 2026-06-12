@@ -1,0 +1,11 @@
+# Microsoft Agent Framework
+agent-framework==1.8.1
+
+# Web UI
+chainlit>=2.11.1
+
+# Environment variables
+python-dotenv>=1.2.1
+
+# HTTP client for tools
+httpx>=0.28.0
